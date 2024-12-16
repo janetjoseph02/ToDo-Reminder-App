@@ -3,24 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todo App</title>
+    <title>To-Do Reminder App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        .completed {
+            text-decoration: line-through;
+            background-color: #e0e0e0;
+        }
+        button {
+            padding: 5px 10px;
+            margin: 5px;
+            cursor: pointer;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input[type="checkbox"] {
+            cursor: pointer;
+        }
+        #loading {
+            display: none;
+            font-size: 18px;
+            color: #333;
+        }
+    </style>
 </head>
 <body>
-    <h1>Todo App</h1>
-
-    <ul id="todo-list"></ul>
+    <div class="container">
+        <h1>To-Do Reminder App</h1>
+        <form id="add-task-form">
+            <input type="text" id="task" placeholder="Enter a task" required>
+            <button type="submit">Add Task</button>
+        </form>
+        <div id="loading">Loading...</div>
+        <table id="task-table">
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Completed</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 
     <script>
-        fetch('/todos')
-            .then(response => response.json())
-            .then(data => {
-                const todoList = document.getElementById('todo-list');
-                data.forEach(todo => {
-                    const li = document.createElement('li');
-                    li.textContent = `${todo.title}: ${todo.description}`;
-                    todoList.appendChild(li);
+        const apiUrl = 'http://127.0.0.1:5000';
+
+        // Show Loading Indicator
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        // Hide Loading Indicator
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // Fetch all tasks and render them
+        function fetchTasks() {
+            showLoading();
+            fetch(`${apiUrl}/todos`)
+                .then(res => res.json())
+                .then(data => {
+                    hideLoading();
+                    const tbody = document.querySelector('#task-table tbody');
+                    tbody.innerHTML = '';
+                    data.forEach(task => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="${task.completed ? 'completed' : ''}">${task.task}</td>
+                            <td><input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask('${task.id}', this.checked)"></td>
+                            <td>
+                                <button onclick="deleteTask('${task.id}')">Delete</button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(err => {
+                    hideLoading();
+                    handleError('Error fetching tasks');
                 });
-            });
+        }
+
+        // Handle errors by showing a message on the page
+        function handleError(message) {
+            const errorMessage = document.createElement('p');
+            errorMessage.style.color = 'red';
+            errorMessage.textContent = message;
+            document.body.appendChild(errorMessage);
+            setTimeout(() => errorMessage.remove(), 3000);
+        }
+
+        // Toggle the task completion status
+        function toggleTask(id, completed) {
+            fetch(`${apiUrl}/todo/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed })
+            }).then(() => fetchTasks())
+              .catch(() => handleError('Failed to update task'));
+        }
+
+        // Delete a task
+        function deleteTask(id) {
+            fetch(`${apiUrl}/todo/${id}`, { method: 'DELETE' })
+                .then(() => fetchTasks())
+                .catch(() => handleError('Failed to delete task'));
+        }
+
+        // Add a new task
+        document.getElementById('add-task-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const task = document.getElementById('task').value.trim();
+            if (!task) {
+                alert("Task cannot be empty");
+                return;
+            }
+            fetch(`${apiUrl}/todo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task })
+            }).then(() => {
+                document.getElementById('task').value = '';
+                fetchTasks();
+            }).catch(err => handleError('Failed to add task'));
+        });
+
+        // Fetch tasks initially
+        fetchTasks();
     </script>
 </body>
 </html>
